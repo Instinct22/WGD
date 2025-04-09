@@ -13,8 +13,10 @@ class AddWgUser:
         }
         self.recently_created = []
         self.name = []
+        self.peer_id = []
         self.filename_peers = 'peers.json'
 
+        """Необходимо будет создать функционал в будущем для проверки инстансов, свободных конфигураций и т.д."""
         self.ip = "91.196.32.98"  # IP адрес сервера WGDashboard
         self.port = "10086"  # Порт сервера WGDashboard
         self.config_name = "wg0"  # Имя конфигурации
@@ -26,7 +28,7 @@ class AddWgUser:
 
     # Функция проверки на наличие пользователя
     def check_client_configuration(self):
-        peer_url = f"http://{self.ip}:{self.port}/api/getWireguardConfigurationInfo"  # По данной ручке можно попробовать собирать метрики. Либо посмотреть в сторону из подкапота (нужно углубиться)
+        peer_url = f"http://{self.ip}:{self.port}/api/getWireguardConfigurationInfo"
         params = {
             "configurationName": self.config_name
         }
@@ -37,17 +39,16 @@ class AddWgUser:
 
             data = response.json()
 
-            with open('getWireguardConfigurationInfo.json', 'w') as file:
-                json.dump(data, file, indent=4)
-
             if not data.get("status") or "configurationPeers" not in data.get("data", {}):
                 print(f"Ошибка при получении списка пиров: {data.get('message')}")
 
             peers = data["data"]["configurationPeers"]
 
             for user in peers:
-                if self.name_user == peers:
-                    return
+                if user.get("name") == str(self.name_user):
+                    return False
+            return True
+
         except Exception as e:
             print(f"Ошибка при получении списка пиров: {e}")
 
@@ -133,14 +134,15 @@ class AddWgUser:
                         "preshared_key": peer.get("preshared_key", "")
                     }
                     self.recently_created.append(filtered_peer)
+                    self.peer_id = peer.get("id")
             with open('peers.json', 'w') as file:
                 json.dump(self.recently_created, file, indent=4)
-            return self.recently_created
+            return self.recently_created, self.peer_id
 
         except Exception as e:
             print(f"Ошибка при получении списка пиров: {e}")
 
-    #Функция ренейминга пользователя от формата: BulkPeer #1_20250408_143028 на id пользователя
+    #Функция ренейминга пользователя от формата: BulkPeer #1_20250408_143028 на id пользователя в ТГ
     def reconfig_peer(self):
         update_url = f"http://{self.ip}:{self.port}/api/updatePeerSettings/{self.config_name}"
         payload = None
@@ -201,10 +203,38 @@ class AddWgUser:
         else:
             print("Не удалось создать данные для обновления пира")
 
+    # Функция скачивания конфигурации
+    def download_peer_config(self):
+        url = f"http://{self.ip}:{self.port}/api/downloadPeer/{self.config_name}"
+
+        params = {
+            'id': self.peer_id
+        }
+
+        response = requests.get(url, headers=self.headers, params=params)
+
+        if response.status_code == 200 and response.json()['status']:
+
+            config_data = response.json()['data']
+            file_name = f"{self.name_user}.conf"
+            file_content = config_data['file']
+
+
+            with open(file_name, 'w') as f:
+                f.write(file_content)
+
+            print(f"Файл конфигурации сохранен как {file_name}")
+            return file_name
+        else:
+            print(f"Ошибка: {response.json().get('message', 'Неизвестная ошибка')}")
+            return None
+
+
 if __name__ == "__main__":
     add_user = AddWgUser()
     add_user.check_client_configuration()
     add_user.create_wg_users()
     add_user.parse_peer_name()
     add_user.reconfig_peer()
+    add_user.download_peer_config()
 

@@ -13,6 +13,7 @@ class AddWgUser:
         }
         self.recently_created = []
         self.name = []
+        self.user_names = []
         self.peer_id = []
         self.filename_peers = 'peers.json'
 
@@ -44,10 +45,9 @@ class AddWgUser:
 
             peers = data["data"]["configurationPeers"]
 
-            for user in peers:
-                if user.get("name") == str(self.name_user):
-                    return False
-            return True
+            self.user_names = [user.get("name") for user in peers if user.get("name")]
+
+            return self.user_names
 
         except Exception as e:
             print(f"Ошибка при получении списка пиров: {e}")
@@ -83,11 +83,9 @@ class AddWgUser:
             data = response.json()
             if response.status_code == 200:
                 if data.get("status"):
-                    print(f"Успешно создано {self.amount} пользователей!")
-
                     self.name = [item.get("name") for item in data["data"] if item.get("name")]
-                    print(f"Созданы пользователи с именами: {self.name}")
                     return self.name
+
                 else:
                     print(f"Ошибка: {data.get('message')}")
             else:
@@ -223,15 +221,15 @@ class AddWgUser:
             with open(file_name, 'w') as f:
                 f.write(file_content)
 
-            print(f"Файл конфигурации сохранен как {file_name}")
             return file_name
+
         else:
             print(f"Ошибка: {response.json().get('message', 'Неизвестная ошибка')}")
             return None
 
 
 if __name__ == "__main__":
-    add_user = AddWgUser()
+    add_user = AddWgUser(name_user="qweqweqwe")
     add_user.check_client_configuration()
     add_user.create_wg_users()
     add_user.parse_peer_name()
